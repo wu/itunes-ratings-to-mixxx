@@ -2,12 +2,10 @@
 use strict;
 use warnings;
 
-use YAML;
 use DBI;
 use File::Temp qw/ :POSIX /;
 use POSIX qw(strftime);
 use SQL::Abstract;
-use YAML;
 
 
 my $dbfile = '/Users/wu/Library/Application Support/Mixxx/mixxxdb.sqlite';
