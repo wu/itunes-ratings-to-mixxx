@@ -8,7 +8,7 @@ use POSIX qw(strftime);
 use SQL::Abstract;
 
 
-my $dbfile = '/Users/wu/Library/Application Support/Mixxx/mixxxdb.sqlite';
+my $dbfile = join( "/", $ENV{HOME}, '/Library/Application Support/Mixxx/mixxxdb.sqlite' );
 
 my $script_path = create_applescript();
 my $ratings_h = get_itunes_ratings( $script_path );
