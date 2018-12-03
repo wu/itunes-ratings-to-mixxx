@@ -1,0 +1,146 @@
+#!/usr/bin/env perl
+use strict;
+use warnings;
+
+use YAML;
+use DBI;
+use File::Temp qw/ :POSIX /;
+use POSIX qw(strftime);
+use SQL::Abstract;
+use YAML;
+
+
+my $dbfile = '/Users/wu/Library/Application Support/Mixxx/mixxxdb.sqlite';
+
+my $script_path = create_applescript();
+my $ratings_h = get_itunes_ratings( $script_path );
+update_mixx_ratings( $dbfile, $ratings_h );
+
+sub get_itunes_ratings {
+    my ( $script ) = @_;
+
+    my $output = `osascript $script_path`;
+
+    my $ratings_h;
+
+    #my $path = "itunes-ratings.log";
+    #open(my $fh, ">", $path)
+    #    or die "Couldn't open $path for writing: $!\n";
+
+    for my $line ( split /\n/, $output ) {
+        unless ( $line =~ m|^(\d+)\:\s(.*?) \:\:\: (.*)$| ) {
+            die "ERROR: can't parse: $line\n";
+        }
+
+        my ( $rating, $album, $song ) = ( $1, $2, $3 );
+
+        ( $album, $song ) = clean_album_song( $album, $song );
+
+        #print $fh "$rating ::: $album ::: $song\n";
+
+        $ratings_h->{$album}->{$song} = $rating;
+    }
+
+    #close $fh or die "Error closing file: $!\n";
+
+    return $ratings_h;
+}
+
+sub update_mixx_ratings {
+    my ( $dbfile, $ratings_h ) = @_;
+
+    my $dbh = DBI->connect("dbi:SQLite:dbname=$dbfile","","",
+                           {
+                               AutoCommit => 1,
+                               RaiseError => 1,
+                           }
+                       );
+    my $sql = SQL::Abstract->new();
+
+    my($stmt, @bind) = $sql->select('library', '*');
+    my $sth = $dbh->prepare($stmt);
+    $sth->execute(@bind);
+    while ( my $row = $sth->fetchrow_hashref() ) {
+
+        my ( $album, $song ) = clean_album_song( $row->{album}, $row->{title} );
+
+        unless ( $song && $album ) {
+            warn "No song or album: '$song' => '$album'\n" if $ENV{DEBUG};
+            next;
+        }
+
+        unless ( exists $ratings_h->{$album}->{$song} ) {
+            warn "Unable to find rating for $album => $song\n";
+            next;
+        }
+
+        my $rating = $ratings_h->{$album}->{$song};
+
+        unless ( $rating ) {
+            warn "No rating for $song => $album\n" if $ENV{DEBUG};
+            next;
+        }
+
+        my $expected_stars = $rating / 20;
+
+        if ( $expected_stars eq $row->{rating} ) {
+            print "OK: $album => $song\n" if $ENV{DEBUG};
+            next;
+        }
+
+        print "Updating rating from $row->{rating} to $expected_stars for $album => $song\n";
+
+        next if $ENV{DRYRUN};
+
+        my($update_stmt, @update_bind) = $sql->update('library',
+                                                      {
+                                                          rating => $expected_stars },
+                                                      {
+                                                          id => $row->{id} },
+                                                  );
+        my $update_sth = $dbh->prepare($update_stmt);
+        $update_sth->execute(@update_bind);
+
+    }
+
+}
+
+sub create_applescript {
+    my ($fh, $itunes_ratings_scpt) = tmpnam();
+    for my $line ( <DATA> ) {
+        print $fh $line;
+    }
+    close $fh;
+
+    return $itunes_ratings_scpt;
+}
+
+sub clean_album_song {
+    my ( $album, $song ) = @_;
+
+    $album = $album || "";
+    $song = $song || "";
+
+    $album = lc( $album );
+    $song = lc( $song );
+
+
+    return ( $album, $song );
+
+}
+
+
+__DATA__
+tell application "iTunes"
+	set mylist to {}
+	set results to (every track of playlist "Music")
+	repeat with t in results
+		if album of t is not "" then
+			set output to (rating of t & ": " & album of t & " ::: " & name of t & "
+")
+			copy output to end of mylist
+		end if
+	end repeat
+	copy mylist as Unicode text to output
+end tell
+
