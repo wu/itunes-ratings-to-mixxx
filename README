@@ -1,0 +1,22 @@
+This script will only work on macOS.  It reads the ratings from your
+itunes library using applescript, and applies them to mixxx using the
+sqlite database.
+
+To install the script dependencies, it's recommended that you install
+Carton, and use it to install the dependencies defined in the
+cpanfile.
+
+  cpanm Carton
+  carton install
+
+  # no arguments required
+  carton exec ./mixxx-ratings
+
+Use the DRYRUN environment variable to display what would be done
+without actually making any changes to the database.
+
+  DRYRUN=1 ./mixxx-ratings
+
+Set the DEBUG environment variable for more information.
+
+  DEBUG=1 ./mixx-ratings
