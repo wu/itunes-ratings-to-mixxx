@@ -91,11 +91,9 @@ sub update_mixx_ratings {
         next if $ENV{DRYRUN};
 
         my($update_stmt, @update_bind) = $sql->update('library',
-                                                      {
-                                                          rating => $expected_stars },
-                                                      {
-                                                          id => $row->{id} },
-                                                  );
+                                                      { rating => $expected_stars },
+                                                      {     id => $row->{id}      },
+                                                     );
         my $update_sth = $dbh->prepare($update_stmt);
         $update_sth->execute(@update_bind);
 
